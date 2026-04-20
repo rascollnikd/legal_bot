@@ -3,12 +3,13 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from multi_searcher import MultiCourtSearcher
 
-TOKEN = os.environ.get("8295719402:AAGQZyp7L4SeLG-rDawVYAPKJbqBU5H2FCg")
+# === ВРЕМЕННО токен прописан здесь (потом уберём) ===
+TOKEN = "8295719402:AAGQZyp7L4SeLG-rDawVYAPKJbqBU5H2FCg"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "⚖️ *Юридический охотник* ⚖️\n\n"
-        "Напишите /track [тема] для поиска судебной практики\n"
+        "Напишите /track [тема]\n"
         "Пример: `/track расторжение договора аренды`",
         parse_mode="Markdown"
     )
@@ -18,16 +19,16 @@ async def track(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not query:
         await update.message.reply_text("❓ Укажите тему. Пример: `/track аренда`", parse_mode="Markdown")
         return
-    
-    await update.message.reply_text(f"🔍 *Ищу:* {query}\n\nЭто может занять 20-30 секунд...", parse_mode="Markdown")
-    
+
+    await update.message.reply_text(f"🔍 *Ищу:* {query}\n\nПодождите 10-20 секунд...", parse_mode="Markdown")
+
     searcher = MultiCourtSearcher()
     results = searcher.search_all(query)
-    
+
     if not results:
         await update.message.reply_text(f"😔 *Ничего не найдено* по запросу: {query}", parse_mode="Markdown")
         return
-    
+
     message = f"✅ *Найдено {len(results)} дел:*\n\n"
     for i, case in enumerate(results[:5], 1):
         message += f"*{i}. {case['number']}*\n"
@@ -37,7 +38,7 @@ async def track(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if case.get('decision'):
             message += f"⚖️ {case['decision']}\n"
         message += f"🔗 [Смотреть дело]({case['link']})\n\n"
-    
+
     await update.message.reply_text(message, parse_mode="Markdown", disable_web_page_preview=False)
 
 def main():
@@ -47,7 +48,7 @@ def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("track", track))
-    print("✅ Бот запущен!")
+    print("✅ Бот запущен и готов к работе!")
     app.run_polling()
 
 if __name__ == "__main__":
