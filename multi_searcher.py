@@ -6,7 +6,7 @@ import os
 import google.generativeai as genai
 
 # Инициализация ИИ (ключ из переменных окружения)
-GEMINI_KEY = os.environ.get("GEMINI_KEY")
+GEMINI_KEY = os.environ.get("AIzaSyCjdUlJI6fUJ9n8LTEdYaYq6NkWIgEqrCE")
 if GEMINI_KEY:
     genai.configure(api_key=GEMINI_KEY)
     model = genai.GenerativeModel('gemini-1.5-flash')
