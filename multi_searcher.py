@@ -3,9 +3,9 @@ from bs4 import BeautifulSoup
 import time
 import json
 import os
-import google.generativeai as genai
+from google import genai
 
-# === ВАШ КЛЮЧ GEMINI (уже вставлен) ===
+# === ВАШ КЛЮЧ GEMINI  ===
 GEMINI_KEY = "AIzaSyCjdUlJI6fUJ9n8LTEdYaYq6NkWIgEqrCE"
 
 if GEMINI_KEY:
