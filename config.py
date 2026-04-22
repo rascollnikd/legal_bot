@@ -1,6 +1,3 @@
-# Configuration for the legal bot
-
-# Environment variables
-API_KEY = 'your_api_key_here'
-DATABASE_URL = 'your_database_url_here'
-DEBUG = True
+BOT_TOKEN=8295719402:AAGQZyp7L4SeLG-rDawVYAPKJbqBU5H2FCg
+LOG_LEVEL=INFO
+API_BASE_URL=https://api.sudrf.ru
