@@ -4,25 +4,27 @@ import requests
 from bs4 import BeautifulSoup
 import time
 import json
+import asyncio
+import nest_asyncio
 from google import genai
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from dotenv import load_dotenv
 
-# === ЗАГРУЗКА ПЕРЕМЕННЫХ ИЗ .env ===
+# === ПРИМЕНЯЕМ nest_asyncio ДЛЯ ИСПРАВЛЕНИЯ EVENT LOOP ===
+nest_asyncio.apply()
+
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 GEMINI_KEY = os.getenv("GEMINI_KEY", "AIzaSyCjdUlJI6fUJ9n8LTEdYaYq6NkWIgEqrCE")
 
-# === НАСТРОЙКА ЛОГИРОВАНИЯ ===
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=LOG_LEVEL
 )
 logger = logging.getLogger(__name__)
 
-# === ИНИЦИАЛИЗАЦИЯ GEMINI ===
 client = genai.Client(api_key=GEMINI_KEY)
 
 class JudicialCaseSearcher:
@@ -30,7 +32,6 @@ class JudicialCaseSearcher:
         self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
     def _get_ai_description(self, number, title):
-        """Получить фабулу и решение от Gemini"""
         try:
             prompt = f"""
 Ты юрист. Верни ТОЛЬКО JSON (без пояснений):
@@ -59,24 +60,24 @@ class JudicialCaseSearcher:
             url = f"https://kad.arbitr.ru/Kad/SearchInstances?query={query}"
             response = requests.get(url, headers=self.headers, timeout=15)
             soup = BeautifulSoup(response.text, 'html.parser')
-            
+
             results = []
             for block in soup.find_all('div', class_='instance-card')[:limit]:
                 number = block.find('div', class_='case-number')
                 title = block.find('div', class_='case-title')
                 link = block.find('a', href=True)
-                
+
                 case_number = number.text.strip() if number else "Номер не найден"
                 case_title = title.text.strip()[:150] if title else "Название не найдено"
-                
+
                 if link:
                     href = link.get('href')
                     case_link = "https://kad.arbitr.ru" + href if href.startswith('/') else href
                 else:
                     case_link = None
-                
+
                 fabula, decision = self._get_ai_description(case_number, case_title)
-                
+
                 results.append({
                     'number': case_number,
                     'title': case_title,
@@ -85,7 +86,7 @@ class JudicialCaseSearcher:
                     'decision': decision
                 })
                 time.sleep(1)
-            
+
             return results
         except Exception as e:
             logger.error(f"Ошибка поиска: {e}")
@@ -93,15 +94,11 @@ class JudicialCaseSearcher:
 
 case_searcher = JudicialCaseSearcher()
 
-# === ОБРАБОТЧИКИ КОМАНД ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🏛️ *Юридический охотник* 🏛️\n\n"
         "Я ищу судебную практику на сайте kad.arbitr.ru\n"
         "Добавляю описание от Gemini и ссылку на дело.\n\n"
-        "📌 *Команды:*\n"
-        "/start - приветствие\n"
-        "/help - помощь\n\n"
         "🔍 *Просто напишите тему поиска:*\n"
         "Например: *расторжение договора аренды*",
         parse_mode="Markdown"
@@ -110,32 +107,31 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📖 *Как пользоваться:*\n\n"
-        "1️⃣ Напишите тему поиска (например, *долг по аренде*)\n"
+        "1️⃣ Напишите тему поиска\n"
         "2️⃣ Бот найдёт дела на kad.arbitr.ru\n"
         "3️⃣ Gemini добавит краткое описание\n"
         "4️⃣ Вы получите ссылку на карточку дела\n\n"
-        "⚡ *Совет:* используйте короткие ключевые слова\n"
-        "📎 *Примеры:* аренда, поставка, подряд, А40-12345/2024",
+        "📎 *Примеры:* аренда, поставка, А40-12345/2024",
         parse_mode="Markdown"
     )
 
 async def search_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.message.text.strip()
-    
+
     if len(query) < 3:
         await update.message.reply_text("❓ Введите минимум 3 символа для поиска")
         return
-    
+
     msg = await update.message.reply_text(f"🔍 *Ищу:* {query}\n\n⏳ Подождите 10-20 секунд...", parse_mode="Markdown")
-    
+
     results = await case_searcher.search_cases(query)
-    
+
     if not results:
-        await msg.edit_text(f"😔 *Ничего не найдено* по запросу: {query}\n\nПопробуйте изменить формулировку или использовать номер дела", parse_mode="Markdown")
+        await msg.edit_text(f"😔 *Ничего не найдено* по запросу: {query}", parse_mode="Markdown")
         return
-    
+
     await msg.delete()
-    
+
     for case in results:
         text = (
             f"*{case['number']}*\n"
@@ -143,9 +139,9 @@ async def search_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📋 *Фабула:* {case['fabula']}\n"
             f"⚖️ *Решение:* {case['decision']}\n"
         )
-        
+
         keyboard = [[InlineKeyboardButton("🔗 Смотреть дело", url=case['link'])]]
-        
+
         await update.message.reply_text(
             text,
             reply_markup=InlineKeyboardMarkup(keyboard),
@@ -163,12 +159,11 @@ async def main():
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, search_handler))
     app.add_error_handler(error_handler)
-    
+
     logger.info("🤖 Бот запущен...")
     print("✅ Бот запущен и готов к работе!")
-    
+
     await app.run_polling()
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())
