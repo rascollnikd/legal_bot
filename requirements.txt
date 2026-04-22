@@ -1,2 +1,6 @@
 python-telegram-bot
+requests
+beautifulsoup4
+google-genai
 python-dotenv
+nest_asyncio
