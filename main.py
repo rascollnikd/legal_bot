@@ -28,7 +28,7 @@ def lalala (message):
    else:
       user_id = message.from_user.id
       searchQuery = message.text
-      url = f"ВОТ ТУТ АДРЕС ВАШЕГО САЙТА wp-json/wp/v2/posts?search={searchQuery}"
+      url = f"https://sudact.ru/search/?page=1&query={query}&source=all" wp-json/wp/v2/posts?search={searchQuery}"
       responce = requests.get(url) 
       if not responce.json():
         bot.send_message(message.chat.id, 'Я ничего не нашел по вашему запросу') 
