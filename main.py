@@ -1,50 +1,92 @@
 import telebot
 import requests
 from telebot import types
+import time
+import json
 
 bot = telebot.TeleBot('8295719402:AAGQZyp7L4SeLG-rDawVYAPKJbqBU5H2FCg')
 bot.remove_webhook()
 
-
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    user_id = message.from_user.id
-    pressStartButton = 'Кнопка старт'
-
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     filmSearchButton = types.KeyboardButton('🔍 Начать поиск')
     markup.add(filmSearchButton)
-
-    bot.send_message(message.chat.id, "🏛️ *Добро пожаловать в бот поиска судебной практики!*\n\nНажмите «Начать поиск» и введите тему (например, *расторжение договора аренды*)", 
-                    parse_mode='Markdown', reply_markup=markup)
-
+    
+    bot.send_message(
+        message.chat.id,
+        "🏛️ *Добро пожаловать в бот поиска судебной практики!*\n\n"
+        "Нажмите «Начать поиск» и введите тему.\n"
+        "📎 *Примеры:* расторжение договора аренды, взыскание долга, А40-12345/2024",
+        parse_mode='Markdown',
+        reply_markup=markup
+    )
 
 @bot.message_handler(content_types=['text'])
-def lalala(message):
+def search_handler(message):
     if message.chat.type == 'private':
         if message.text == '🔍 Начать поиск':
-            bot.send_message(message.chat.id, '📝 *Введите тему для поиска:*\n\nПримеры:\n- расторжение договора аренды\n- взыскание долга\n- А40-12345/2024', parse_mode='Markdown')
+            bot.send_message(
+                message.chat.id,
+                '📝 *Введите тему для поиска:*\n\n'
+                'Примеры:\n'
+                '- расторжение договора аренды\n'
+                '- взыскание долга\n'
+                '- А40-12345/2024',
+                parse_mode='Markdown'
+            )
         else:
-            user_id = message.from_user.id
-            searchQuery = message.text
-            url = f"https://kad.arbitr.ru/Kad/SearchInstances?query={searchQuery}"
+            query = message.text.strip()
+            if len(query) < 3:
+                bot.send_message(message.chat.id, '❓ Введите минимум 3 символа для поиска')
+                return
             
-            # Отправляем уведомление о поиске
-            bot.send_message(message.chat.id, f'🔍 *Ищу:* {searchQuery}\n\n⏳ Подождите 10-20 секунд...', parse_mode='Markdown')
+            msg = bot.send_message(
+                message.chat.id,
+                f'🔍 *Ищу:* {query}\n\n⏳ Подождите 10-20 секунд...',
+                parse_mode='Markdown'
+            )
             
             try:
-                response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=15)
+                # Поиск на kad.arbitr.ru
+                url = f"https://kad.arbitr.ru/Kad/SearchInstances?query={query}"
+                headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+                response = requests.get(url, headers=headers, timeout=15)
                 
-                if not response.json():
-                    bot.send_message(message.chat.id, '😔 *Ничего не найдено* по вашему запросу.\n\nПопробуйте изменить формулировку или использовать номер дела', parse_mode='Markdown')
-                else:
-                    for SearchResult in response.json():
-                        title = SearchResult.get('title', {}).get('rendered', 'Без названия')
-                        link = SearchResult.get('link', '#')
-                        completeMessage = f"📌 *{title}*\n🔗 [Смотреть дело]({link})"
-                        bot.send_message(message.chat.id, completeMessage, parse_mode='Markdown', disable_web_page_preview=False)
+                # Простой парсинг HTML
+                found = False
+                if 'instance-card' in response.text:
+                    # Нашли карточки дел
+                    bot.edit_message_text(
+                        f'✅ *Найдены дела по запросу:* {query}\n\n'
+                        f'🔗 Ссылка на результаты:\n'
+                        f'https://kad.arbitr.ru/Kad/SearchInstances?query={query}',
+                        chat_id=message.chat.id,
+                        message_id=msg.message_id,
+                        parse_mode='Markdown'
+                    )
+                    found = True
+                
+                if not found:
+                    bot.edit_message_text(
+                        f'😔 *Ничего не найдено* по запросу: {query}\n\n'
+                        f'Попробуйте:\n'
+                        f'- изменить формулировку\n'
+                        f'- использовать номер дела\n'
+                        f'- более короткие ключевые слова',
+                        chat_id=message.chat.id,
+                        message_id=msg.message_id,
+                        parse_mode='Markdown'
+                    )
+                    
             except Exception as e:
-                bot.send_message(message.chat.id, f'❌ *Ошибка:* {str(e)[:100]}\n\nПопробуйте позже или измените запрос', parse_mode='Markdown')
+                bot.edit_message_text(
+                    f'❌ *Ошибка:* {str(e)[:100]}\n\nПопробуйте позже',
+                    chat_id=message.chat.id,
+                    message_id=msg.message_id,
+                    parse_mode='Markdown'
+                )
 
-
-bot.polling(none_stop=True)
+if __name__ == "__main__":
+    print("✅ Бот запущен и готов к работе!")
+    bot.polling(none_stop=True)
